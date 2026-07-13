@@ -11,17 +11,30 @@ export const Colors = {
   light: {
     text: '#000000',
     background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
+    backgroundElement: '#f9fafb', // Clean card/element background
+    backgroundSelected: '#f3f0ff', // Subtle purple background for selected items
+    textSecondary: '#5e636e',
+    primary: '#7c3aed', // Purple accent
+    secondary: '#f59e0b', // Yellow accent
+    accent: '#000000', // Black
   },
   dark: {
     text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
+    background: '#0b0c0e', // Sleek dark base
+    backgroundElement: '#181a1f', // Dark gray card background
+    backgroundSelected: '#292150', // Subtle dark purple selection
+    textSecondary: '#9fa4b0',
+    primary: '#a78bfa', // Light purple
+    secondary: '#fbbf24', // Light yellow
+    accent: '#ffffff', // White
   },
+} as const;
+
+export const BorderRadius = {
+  small: 8,
+  medium: 16,
+  large: 24,
+  full: 9999,
 } as const;
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
