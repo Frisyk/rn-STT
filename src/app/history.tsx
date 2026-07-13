@@ -15,6 +15,8 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing, Colors, BorderRadius } from '@/constants/theme';
 import { useTransactionStore, Transaction } from '@/store/transactionStore';
+// eslint-disable-next-line import/no-unresolved
+import { Feather } from '@expo/vector-icons';
 
 export default function HistoryScreen() {
   const colorScheme = useColorScheme();
@@ -131,9 +133,12 @@ export default function HistoryScreen() {
               { backgroundColor: item.synced ? 'rgba(34, 197, 94, 0.1)' : 'rgba(234, 88, 12, 0.1)' },
             ]}
           >
-            <Text style={[styles.statusText, { color: item.synced ? '#22c55e' : '#ea580c' }]}>
-              {item.synced ? 'Awan ✅' : 'Lokal ⏳'}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Feather name={item.synced ? "cloud" : "database"} size={10} color={item.synced ? '#22c55e' : '#ea580c'} />
+              <Text style={[styles.statusText, { color: item.synced ? '#22c55e' : '#ea580c' }]}>
+                {item.synced ? 'Awan' : 'Lokal'}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -142,7 +147,7 @@ export default function HistoryScreen() {
           onPress={() => deleteTransaction(item.id)}
           style={({ pressed }) => [styles.colAction, pressed && styles.buttonPressed]}
         >
-          <Text style={styles.deleteText}>🗑️</Text>
+          <Feather name="trash-2" size={16} color="#ef4444" />
         </Pressable>
       </View>
     );
@@ -154,7 +159,10 @@ export default function HistoryScreen() {
         {/* Header Block */}
         <View style={styles.header}>
           <View style={styles.headerTitleRow}>
-            <ThemedText type="title">Riwayat Transaksi 📊</ThemedText>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.two }}>
+              <ThemedText type="title">Riwayat Transaksi</ThemedText>
+              <Feather name="list" size={24} color={colors.primary} />
+            </View>
             {unsyncedCount > 0 && (
               <Pressable
                 onPress={syncTransactions}
@@ -168,7 +176,10 @@ export default function HistoryScreen() {
                 {isSyncing ? (
                   <ActivityIndicator size="small" color="#ffffff" />
                 ) : (
-                  <Text style={styles.smallSyncBtnText}>Sync 🔄</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Feather name="refresh-cw" size={10} color="#ffffff" />
+                    <Text style={styles.smallSyncBtnText}>Sync</Text>
+                  </View>
                 )}
               </Pressable>
             )}
@@ -191,7 +202,10 @@ export default function HistoryScreen() {
                 pressed && styles.buttonPressed,
               ]}
             >
-              <Text style={styles.exportBtnText}>📄 Ekspor ke CSV</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Feather name="download" size={14} color="#ffffff" />
+                <Text style={styles.exportBtnText}>Ekspor ke CSV</Text>
+              </View>
             </Pressable>
 
             <Pressable
@@ -215,7 +229,7 @@ export default function HistoryScreen() {
           ]}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyIcon}>📦</Text>
+              <Feather name="inbox" size={48} color={colors.textSecondary} style={{ opacity: 0.5, marginBottom: 12 }} />
               <ThemedText type="subtitle" style={styles.emptyText}>
                 Belum ada transaksi
               </ThemedText>
@@ -242,7 +256,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
+    paddingTop: Platform.OS === 'web' ? 88 : Spacing.three,
     paddingBottom: Spacing.two,
   },
   headerTitleRow: {

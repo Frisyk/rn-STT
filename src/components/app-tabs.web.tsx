@@ -14,6 +14,8 @@ import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
 import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
+// eslint-disable-next-line import/no-unresolved
+import { Feather } from '@expo/vector-icons';
 
 export default function AppTabs() {
   return (
@@ -35,7 +37,7 @@ export default function AppTabs() {
 
 export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps) {
   return (
-    <Pressable {...props} style={({ pressed }) => pressed && styles.pressed}>
+    <Pressable style={({ pressed }) => pressed && styles.pressed} {...props}>
       <ThemedView
         type={isFocused ? 'backgroundSelected' : 'backgroundElement'}
         style={styles.tabButtonView}>
@@ -54,9 +56,12 @@ export function CustomTabList(props: TabListProps) {
   return (
     <View {...props} style={styles.tabListContainer}>
       <ThemedView type="backgroundElement" style={styles.innerContainer}>
-        <ThemedText type="smallBold" style={styles.brandText}>
-          UMKM Hub
-        </ThemedText>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.one, marginRight: 'auto' }}>
+          <Feather name="trending-up" size={14} color={colors.primary} />
+          <ThemedText type="smallBold">
+            CatatKas
+          </ThemedText>
+        </View>
 
         {props.children}
 

@@ -16,6 +16,8 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing, Colors, BorderRadius } from '@/constants/theme';
 import { useTransactionStore } from '@/store/transactionStore';
+// eslint-disable-next-line import/no-unresolved
+import { Feather } from '@expo/vector-icons';
 
 // Web Speech Recognition Setup
 let recognition: any = null;
@@ -34,10 +36,10 @@ const CATEGORIES = ['Makanan', 'Minuman', 'Barang', 'Jasa', 'Lainnya'] as const;
 
 // Mock speech examples for testing in Expo Go
 const MOCK_EXAMPLES = [
-  { text: 'Nasi goreng dua porsi harga lima belas ribu', label: '🍽️ Nasi Goreng (2 x Rp15.000)' },
-  { text: 'Kopi susu gula aren tiga gelas seharga sepuluh ribu', label: '☕ Kopi Susu (3 x Rp10.000)' },
-  { text: 'Beras pandan wangi satu karung harga seratus dua puluh ribu', label: '🛒 Beras (1 x Rp120.000)' },
-  { text: 'Potong rambut pria satu jasa harga lima puluh ribu', label: '🛠️ Potong Rambut (1 x Rp50.000)' },
+  { text: 'Nasi goreng dua porsi harga lima belas ribu', label: 'Nasi Goreng (2 x Rp15.000)' },
+  { text: 'Kopi susu gula aren tiga gelas seharga sepuluh ribu', label: 'Kopi Susu (3 x Rp10.000)' },
+  { text: 'Beras pandan wangi satu karung harga seratus dua puluh ribu', label: 'Beras (1 x Rp120.000)' },
+  { text: 'Potong rambut pria satu jasa harga lima puluh ribu', label: 'Potong Rambut (1 x Rp50.000)' },
 ];
 
 // Parser helper function
@@ -282,7 +284,10 @@ export default function HomeScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View style={styles.header}>
-            <ThemedText type="title">Catat Penjualan 🎙️</ThemedText>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.two, marginBottom: Spacing.half }}>
+              <ThemedText type="title">Catat Penjualan</ThemedText>
+              <Feather name="mic" size={24} color={colors.primary} />
+            </View>
             <ThemedText themeColor="textSecondary">
               Gunakan suara untuk merekam transaksi penjualan dengan instan.
             </ThemedText>
@@ -299,7 +304,7 @@ export default function HomeScreen() {
                   pressed && styles.buttonPressed,
                 ]}
               >
-                <Text style={styles.micIcon}>{isRecording ? '🛑' : '🎙️'}</Text>
+                <Feather name={isRecording ? "square" : "mic"} size={32} color="#ffffff" />
               </Pressable>
               <ThemedText type="smallBold" style={styles.sttStatus}>
                 {isRecording ? 'Mendengarkan... Tap untuk berhenti' : 'Tap Mikrofon untuk Bicara'}
@@ -455,7 +460,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
+    paddingTop: Platform.OS === 'web' ? 88 : Spacing.three,
     paddingBottom: Spacing.three,
   },
   sttSection: {
