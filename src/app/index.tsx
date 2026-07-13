@@ -16,7 +16,6 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing, Colors, BorderRadius } from '@/constants/theme';
 import { useTransactionStore } from '@/store/transactionStore';
-// eslint-disable-next-line import/no-unresolved
 import { Feather } from '@expo/vector-icons';
 
 // Web Speech Recognition Setup
@@ -32,27 +31,38 @@ if (Platform.OS === 'web' && typeof window !== 'undefined') {
   }
 }
 
-const CATEGORIES = ['Makanan', 'Minuman', 'Barang', 'Jasa', 'Lainnya'] as const;
+const PEMASUKAN_CATEGORIES = ['Makanan', 'Minuman', 'Barang', 'Jasa', 'Lainnya'] as const;
+const PENGELUARAN_CATEGORIES = ['Bahan Baku', 'Operasional', 'Sewa', 'Gaji', 'Lainnya'] as const;
 
 // Mock speech examples for testing in Expo Go
-const MOCK_EXAMPLES = [
-  { text: 'Nasi goreng dua porsi harga lima belas ribu', label: 'Nasi Goreng (2 x Rp15.000)' },
-  { text: 'Kopi susu gula aren tiga gelas seharga sepuluh ribu', label: 'Kopi Susu (3 x Rp10.000)' },
-  { text: 'Beras pandan wangi satu karung harga seratus dua puluh ribu', label: 'Beras (1 x Rp120.000)' },
-  { text: 'Potong rambut pria satu jasa harga lima puluh ribu', label: 'Potong Rambut (1 x Rp50.000)' },
+const MOCK_PEMASUKAN = [
+  { text: 'Jual nasi goreng dua porsi harga lima belas ribu modal sepuluh ribu', label: 'Nasi Goreng (2 x Rp15.000, Modal Rp10.000)' },
+  { text: 'Kopi susu tiga gelas seharga sepuluh ribu modal enam ribu', label: 'Kopi Susu (3 x Rp10.000, Modal Rp6.000)' },
+  { text: 'Potong rambut pria satu jasa harga lima puluh ribu modal nol', label: 'Potong Rambut (1 x Rp50.000, Modal Rp0)' },
+];
+
+const MOCK_PENGELUARAN = [
+  { text: 'Beli beras pandan wangi satu karung harga seratus dua puluh ribu', label: 'Beras (1 x Rp120.000)' },
+  { text: 'Bayar listrik toko bulanan seharga seratus lima puluh ribu', label: 'Listrik Toko (1 x Rp150.000)' },
+  { text: 'Gaji karyawan harian satu orang seratus ribu rupiah', label: 'Gaji Harian (1 x Rp100.000)' },
 ];
 
 // Parser helper function
 const parseVoiceText = (text: string) => {
   const lowercase = text.toLowerCase();
   
-  // 1. Parse quantity
+  // 1. Determine type
+  const expenseKeywords = ['beli', 'belanja', 'bayar', 'sewa', 'gaji', 'utilitas', 'operasional', 'pengeluaran', 'keluar'];
+  const isExpense = expenseKeywords.some((kw) => lowercase.includes(kw));
+  const type: 'pemasukan' | 'pengeluaran' = isExpense ? 'pengeluaran' : 'pemasukan';
+
   const numberWords: { [key: string]: number } = {
     satu: 1, dua: 2, tiga: 3, empat: 4, lima: 5, enam: 6, tujuh: 7, delapan: 8, sembilan: 9, sepuluh: 10
   };
 
+  // 2. Parse quantity
   let qty = 1;
-  const qtyRegex = /(?:(\d+)|(satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan|sepuluh))\s*(porsi|gelas|pax|buah|biji|pcs|ikat|piring|mangkuk|kg|bungkus)/i;
+  const qtyRegex = /(?:(\d+)|(satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan|sepuluh))\s*(porsi|gelas|pax|buah|biji|pcs|ikat|piring|mangkuk|kg|bungkus|liter|karung|jasa|orang)/i;
   const qtyMatch = lowercase.match(qtyRegex);
   if (qtyMatch) {
     if (qtyMatch[1]) {
@@ -72,8 +82,7 @@ const parseVoiceText = (text: string) => {
     }
   }
 
-  // 2. Parse price/money
-  let parsedPrice = 0;
+  // 3. Helper to parse price/money words
   let cleanedText = lowercase;
   const wordToNumMap: [RegExp, string][] = [
     [/sebelas/g, '11'],
@@ -109,6 +118,8 @@ const parseVoiceText = (text: string) => {
     cleanedText = cleanedText.replace(regex, replacement);
   });
 
+  // Extract Harga Jual / Harga Beli (price)
+  let price = 0;
   const thousandRegex = /(\d+)\s*ribu/i;
   const millionRegex = /(\d+)\s*juta/i;
   const hundredRegex = /(\d+)\s*ratus/i;
@@ -120,24 +131,46 @@ const parseVoiceText = (text: string) => {
   const rawNumMatch = cleanedText.match(rawNumRegex);
 
   if (thousandMatch) {
-    parsedPrice = parseInt(thousandMatch[1]) * 1000;
+    price = parseInt(thousandMatch[1]) * 1000;
   } else if (millionMatch) {
-    parsedPrice = parseInt(millionMatch[1]) * 1000000;
+    price = parseInt(millionMatch[1]) * 1000000;
   } else if (hundredMatch) {
-    parsedPrice = parseInt(hundredMatch[1]) * 100;
+    price = parseInt(hundredMatch[1]) * 100;
   } else if (rawNumMatch) {
-    parsedPrice = parseInt(rawNumMatch[1]);
+    price = parseInt(rawNumMatch[1]);
   }
 
-  // 3. Parse product name
+  // 4. Parse HPP (modal) for sales
+  let hpp = 0;
+  if (type === 'pemasukan') {
+    const modalMatch = cleanedText.match(/(?:modal|pokok|beli)\s*(?:sebesar)?\s*(\d+)\s*(ribu|juta)?/i);
+    if (modalMatch) {
+      const base = parseInt(modalMatch[1]);
+      const unit = modalMatch[2] ? modalMatch[2].toLowerCase() : '';
+      if (unit === 'ribu') {
+        hpp = base * 1000;
+      } else if (unit === 'juta') {
+        hpp = base * 1000000;
+      } else {
+        hpp = base;
+      }
+    }
+  }
+
+  // 5. Parse product name & clean text
   let productNameClean = lowercase;
+  
+  // Strip price/modal details
   productNameClean = productNameClean.replace(/(?:harga|seharga|total|bayar|nominal|rupiah)/gi, '');
-  productNameClean = productNameClean.replace(/(?:porsi|gelas|pax|buah|biji|pcs|ikat|piring|mangkuk|kg|bungkus)/gi, '');
+  productNameClean = productNameClean.replace(/(?:porsi|gelas|pax|buah|biji|pcs|ikat|piring|mangkuk|kg|bungkus|liter|karung|jasa|orang)/gi, '');
+  productNameClean = productNameClean.replace(/(?:modal|pokok|beli)\s*(?:sebesar)?\s*\d+\s*(?:ribu|juta)?/gi, '');
+  productNameClean = productNameClean.replace(/(?:modal|pokok|beli)\s*(?:sebesar)?\s*(?:satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan|sepuluh)\s*(?:ribu|juta)?/gi, '');
+  
   Object.keys(numberWords).forEach((word) => {
     productNameClean = productNameClean.replace(new RegExp('\\b' + word + '\\b', 'gi'), '');
   });
   productNameClean = productNameClean.replace(/\d+/g, '');
-  productNameClean = productNameClean.replace(/\b(?:beli|pesan|catat|tambah|ada|transaksi)\b/gi, '');
+  productNameClean = productNameClean.replace(/\b(?:beli|pesan|catat|tambah|ada|transaksi|jual|laku|belanja|gaji|sewa|bayar)\b/gi, '');
   productNameClean = productNameClean.replace(/\s+/g, ' ').trim();
 
   if (productNameClean) {
@@ -146,32 +179,52 @@ const parseVoiceText = (text: string) => {
       .map((w) => w.charAt(0).toUpperCase() + w.substring(1))
       .join(' ');
   } else {
-    productNameClean = 'Transaksi Baru';
+    productNameClean = type === 'pemasukan' ? 'Penjualan Baru' : 'Belanja Baru';
   }
 
-  // Kategori mapping
-  let cat: typeof CATEGORIES[number] = 'Lainnya';
-  const foodKeywords = ['nasi', 'goreng', 'mie', 'bakso', 'sate', 'roti', 'ayam', 'ikan', 'makan', 'soto', 'martabak', 'pempek', 'burger', 'pizza'];
-  const drinkKeywords = ['kopi', 'teh', 'susu', 'jus', 'es', 'drink', 'coffee', 'tea', 'milk', 'boba', 'cendol', 'sirup', 'air'];
-  const serviceKeywords = ['potong', 'cukur', 'salon', 'spa', 'pijat', 'cuci', 'servis', 'jasa', 'sewa', 'clean'];
-  const goodsKeywords = ['sabun', 'beras', 'telur', 'minyak', 'gula', 'buku', 'baju', 'kaos', 'sepatu', 'tas', 'sembako'];
-
+  // Category mapping
+  let category = 'Lainnya';
   const lowerProd = productNameClean.toLowerCase();
-  if (foodKeywords.some((kw) => lowerProd.includes(kw))) {
-    cat = 'Makanan';
-  } else if (drinkKeywords.some((kw) => lowerProd.includes(kw))) {
-    cat = 'Minuman';
-  } else if (serviceKeywords.some((kw) => lowerProd.includes(kw))) {
-    cat = 'Jasa';
-  } else if (goodsKeywords.some((kw) => lowerProd.includes(kw))) {
-    cat = 'Barang';
+  
+  if (type === 'pemasukan') {
+    const foodKeywords = ['nasi', 'goreng', 'mie', 'bakso', 'sate', 'roti', 'ayam', 'ikan', 'makan', 'soto', 'martabak', 'pempek', 'burger', 'pizza'];
+    const drinkKeywords = ['kopi', 'teh', 'susu', 'jus', 'es', 'drink', 'coffee', 'tea', 'milk', 'boba', 'cendol', 'sirup', 'air'];
+    const serviceKeywords = ['potong', 'cukur', 'salon', 'spa', 'pijat', 'cuci', 'servis', 'jasa', 'sewa', 'clean'];
+    const goodsKeywords = ['sabun', 'beras', 'telur', 'minyak', 'gula', 'buku', 'baju', 'kaos', 'sepatu', 'tas', 'sembako'];
+
+    if (foodKeywords.some((kw) => lowerProd.includes(kw))) {
+      category = 'Makanan';
+    } else if (drinkKeywords.some((kw) => lowerProd.includes(kw))) {
+      category = 'Minuman';
+    } else if (serviceKeywords.some((kw) => lowerProd.includes(kw))) {
+      category = 'Jasa';
+    } else if (goodsKeywords.some((kw) => lowerProd.includes(kw))) {
+      category = 'Barang';
+    }
+  } else {
+    const rawMaterialKeywords = ['beras', 'minyak', 'telur', 'daging', 'sayur', 'kopi', 'gula', 'susu', 'tepung', 'bumbu'];
+    const rentalKeywords = ['sewa', 'kontrak', 'ruko', 'kios', 'lapak'];
+    const salaryKeywords = ['gaji', 'karyawan', 'upah', 'staf', 'bonus'];
+    const utilityKeywords = ['listrik', 'air', 'pdam', 'internet', 'pulsa', 'wifi', 'gas'];
+
+    if (rawMaterialKeywords.some((kw) => lowerProd.includes(kw))) {
+      category = 'Bahan Baku';
+    } else if (rentalKeywords.some((kw) => lowerProd.includes(kw))) {
+      category = 'Sewa';
+    } else if (salaryKeywords.some((kw) => lowerProd.includes(kw))) {
+      category = 'Gaji';
+    } else if (utilityKeywords.some((kw) => lowerProd.includes(kw))) {
+      category = 'Operasional'; // Fallback / Utility
+    }
   }
 
   return {
+    type,
     name: productNameClean,
     quantity: qty,
-    price: parsedPrice,
-    category: cat,
+    price,
+    hpp: type === 'pemasukan' ? hpp : 0,
+    category,
   };
 };
 
@@ -182,23 +235,32 @@ export default function HomeScreen() {
 
   const { addTransaction } = useTransactionStore();
 
-  // STT Recording States
+  // STT States
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [sttError, setSttError] = useState<string | null>(null);
 
-  // Form States (pre-filled by parser or manually edited)
+  // Form States
+  const [type, setType] = useState<'pemasukan' | 'pengeluaran'>('pemasukan');
   const [productName, setProductName] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [price, setPrice] = useState('0');
-  const [category, setCategory] = useState<typeof CATEGORIES[number]>('Lainnya');
+  const [hpp, setHpp] = useState('0');
+  const [category, setCategory] = useState<string>('Lainnya');
+
+  const handleTypeChange = (newType: 'pemasukan' | 'pengeluaran') => {
+    setType(newType);
+    setCategory('Lainnya');
+  };
 
   // Voice NLP Parser Logic
   const handleParseAndFillForm = useCallback((text: string) => {
     const parsed = parseVoiceText(text);
+    setType(parsed.type);
     setProductName(parsed.name);
     setQuantity(parsed.quantity.toString());
     setPrice(parsed.price.toString());
+    setHpp(parsed.hpp.toString());
     setCategory(parsed.category);
   }, []);
 
@@ -256,11 +318,14 @@ export default function HomeScreen() {
 
     const qtyNum = parseInt(quantity) || 1;
     const priceNum = parseInt(price) || 0;
+    const hppNum = type === 'pemasukan' ? (parseInt(hpp) || 0) : 0;
 
     addTransaction({
+      type,
       name: productName,
       quantity: qtyNum,
       price: priceNum,
+      hpp: hppNum,
       category,
     });
 
@@ -268,6 +333,7 @@ export default function HomeScreen() {
     setProductName('');
     setQuantity('1');
     setPrice('0');
+    setHpp('0');
     setCategory('Lainnya');
     setTranscript('');
     setSttError(null);
@@ -278,19 +344,55 @@ export default function HomeScreen() {
 
   const totalCalculated = (parseInt(quantity) || 1) * (parseInt(price) || 0);
 
+  const categoriesToRender = type === 'pemasukan' ? PEMASUKAN_CATEGORIES : PENGELUARAN_CATEGORIES;
+  const simulationList = type === 'pemasukan' ? MOCK_PEMASUKAN : MOCK_PENGELUARAN;
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          
           {/* Header */}
           <View style={styles.header}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.two, marginBottom: Spacing.half }}>
-              <ThemedText type="title">Catat Penjualan</ThemedText>
-              <Feather name="mic" size={24} color={colors.primary} />
+              <ThemedText type="title">Catat Kas Buku</ThemedText>
+              <Feather name="book-open" size={24} color={colors.primary} />
             </View>
             <ThemedText themeColor="textSecondary">
-              Gunakan suara untuk merekam transaksi penjualan dengan instan.
+              Rekam dan kelola pemasukan, pengeluaran belanja, dan kalkulasi HPP dengan mudah.
             </ThemedText>
+          </View>
+
+          {/* Switcher Tipe */}
+          <View style={styles.typeContainer}>
+            <Pressable
+              onPress={() => handleTypeChange('pemasukan')}
+              style={[
+                styles.typeBtn,
+                type === 'pemasukan'
+                  ? { backgroundColor: colors.primary }
+                  : { backgroundColor: colors.backgroundSelected },
+                { borderTopLeftRadius: BorderRadius.medium, borderBottomLeftRadius: BorderRadius.medium },
+              ]}
+            >
+              <Text style={[styles.typeBtnText, { color: type === 'pemasukan' ? '#ffffff' : colors.text }]}>
+                Penjualan 🟢
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => handleTypeChange('pengeluaran')}
+              style={[
+                styles.typeBtn,
+                type === 'pengeluaran'
+                  ? { backgroundColor: colors.primary }
+                  : { backgroundColor: colors.backgroundSelected },
+                { borderTopRightRadius: BorderRadius.medium, borderBottomRightRadius: BorderRadius.medium },
+              ]}
+            >
+              <Text style={[styles.typeBtnText, { color: type === 'pengeluaran' ? '#ffffff' : colors.text }]}>
+                Belanja Toko 🔴
+              </Text>
+            </Pressable>
           </View>
 
           {/* STT Section */}
@@ -304,7 +406,7 @@ export default function HomeScreen() {
                   pressed && styles.buttonPressed,
                 ]}
               >
-                <Feather name={isRecording ? "square" : "mic"} size={32} color="#ffffff" />
+                <Feather name={isRecording ? 'square' : 'mic'} size={32} color="#ffffff" />
               </Pressable>
               <ThemedText type="smallBold" style={styles.sttStatus}>
                 {isRecording ? 'Mendengarkan... Tap untuk berhenti' : 'Tap Mikrofon untuk Bicara'}
@@ -333,10 +435,10 @@ export default function HomeScreen() {
           {/* Simulation Section */}
           <View style={styles.simulationContainer}>
             <ThemedText type="smallBold" themeColor="textSecondary" style={styles.simTitle}>
-              Simulasi Suara (Untuk Uji Coba)
+              Simulasi Suara ({type === 'pemasukan' ? 'Penjualan' : 'Belanja'})
             </ThemedText>
             <View style={styles.simPills}>
-              {MOCK_EXAMPLES.map((ex, idx) => (
+              {simulationList.map((ex, idx) => (
                 <Pressable
                   key={idx}
                   onPress={() => {
@@ -357,13 +459,17 @@ export default function HomeScreen() {
 
           {/* Transaction Form confirmation */}
           <ThemedView type="backgroundElement" style={styles.formContainer}>
-            <ThemedText type="subtitle" style={styles.formTitle}>Konfirmasi Catatan</ThemedText>
+            <ThemedText type="subtitle" style={styles.formTitle}>
+              Konfirmasi Catatan {type === 'pemasukan' ? '(Penjualan)' : '(Belanja)'}
+            </ThemedText>
             
             <View style={styles.formField}>
-              <ThemedText type="smallBold" themeColor="textSecondary">Nama Produk</ThemedText>
+              <ThemedText type="smallBold" themeColor="textSecondary">
+                {type === 'pemasukan' ? 'Nama Produk' : 'Nama Pengeluaran / Barang'}
+              </ThemedText>
               <TextInput
                 style={[styles.input, { color: colors.text, borderColor: colors.backgroundSelected }]}
-                placeholder="cth: Nasi Goreng"
+                placeholder={type === 'pemasukan' ? 'cth: Nasi Goreng' : 'cth: Minyak Goreng Bimoli'}
                 placeholderTextColor={colors.textSecondary}
                 value={productName}
                 onChangeText={setProductName}
@@ -381,7 +487,9 @@ export default function HomeScreen() {
                 />
               </View>
               <View style={[styles.formField, { flex: 2 }]}>
-                <ThemedText type="smallBold" themeColor="textSecondary">Harga Satuan (Rp)</ThemedText>
+                <ThemedText type="smallBold" themeColor="textSecondary">
+                  {type === 'pemasukan' ? 'Harga Jual Satuan (Rp)' : 'Biaya Satuan (Rp)'}
+                </ThemedText>
                 <TextInput
                   style={[styles.input, { color: colors.text, borderColor: colors.backgroundSelected }]}
                   keyboardType="numeric"
@@ -391,10 +499,24 @@ export default function HomeScreen() {
               </View>
             </View>
 
+            {type === 'pemasukan' && (
+              <View style={styles.formField}>
+                <ThemedText type="smallBold" themeColor="textSecondary">Harga Pokok / Modal (HPP Satuan - Rp)</ThemedText>
+                <TextInput
+                  style={[styles.input, { color: colors.text, borderColor: colors.backgroundSelected }]}
+                  keyboardType="numeric"
+                  placeholder="Opsional, cth: 10000"
+                  placeholderTextColor={colors.textSecondary}
+                  value={hpp}
+                  onChangeText={setHpp}
+                />
+              </View>
+            )}
+
             <View style={styles.formField}>
               <ThemedText type="smallBold" themeColor="textSecondary">Kategori</ThemedText>
               <View style={styles.categoryPills}>
-                {CATEGORIES.map((catItem) => {
+                {categoriesToRender.map((catItem) => {
                   const isSelected = category === catItem;
                   return (
                     <Pressable
@@ -421,7 +543,7 @@ export default function HomeScreen() {
 
             <View style={styles.totalRow}>
               <ThemedText type="subtitle">Estimasi Total</ThemedText>
-              <ThemedText type="subtitle" style={[styles.totalValue, { color: colors.primary }]}>
+              <ThemedText type="subtitle" style={[styles.totalValue, { color: type === 'pemasukan' ? '#22c55e' : '#ef4444' }]}>
                 Rp{totalCalculated.toLocaleString('id-ID')}
               </ThemedText>
             </View>
@@ -463,6 +585,21 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'web' ? 88 : Spacing.three,
     paddingBottom: Spacing.three,
   },
+  typeContainer: {
+    flexDirection: 'row',
+    marginHorizontal: Spacing.four,
+    marginBottom: Spacing.four,
+    height: 48,
+  },
+  typeBtn: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  typeBtnText: {
+    fontWeight: '800',
+    fontSize: 14,
+  },
   sttSection: {
     marginHorizontal: Spacing.four,
     padding: Spacing.four,
@@ -492,10 +629,6 @@ const styles = StyleSheet.create({
         elevation: 3,
       },
     }),
-  },
-  micIcon: {
-    fontSize: 32,
-    color: '#ffffff',
   },
   sttStatus: {
     marginTop: Spacing.two,

@@ -15,7 +15,6 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing, Colors, BorderRadius } from '@/constants/theme';
 import { useTransactionStore, Transaction } from '@/store/transactionStore';
-// eslint-disable-next-line import/no-unresolved
 import { Feather } from '@expo/vector-icons';
 
 export default function HistoryScreen() {
@@ -33,17 +32,32 @@ export default function HistoryScreen() {
 
   const unsyncedCount = transactions.filter((t) => !t.synced).length;
 
+  // Financial Calculations
+  const totalOmset = transactions
+    .filter((t) => t.type === 'pemasukan')
+    .reduce((sum, t) => sum + t.total, 0);
+
+  const totalBelanja = transactions
+    .filter((t) => t.type === 'pengeluaran')
+    .reduce((sum, t) => sum + t.total, 0);
+
+  const totalLaba = transactions.reduce((sum, t) => sum + t.profit, 0);
+
+  // Break-even Point (BEP) / Balik Modal Calculations
+  const bepProgress = totalBelanja === 0 ? 100 : Math.min(100, Math.round((totalOmset / totalBelanja) * 100));
+  const missingToBep = Math.max(0, totalBelanja - totalOmset);
+
   const handleExportCSV = async () => {
     if (transactions.length === 0) return;
 
     // Generate CSV string
-    const headers = 'ID,Tanggal,Nama Produk,Kategori,Jumlah,Harga Satuan,Total,Status Sinkron\n';
+    const headers = 'ID,Tanggal,Tipe,Nama Produk/Belanja,Kategori,Jumlah,Harga Satuan,HPP Satuan,Total,Laba Bersih,Status Sinkron\n';
     const rows = transactions
       .map((t) => {
         const formattedDate = new Date(t.date).toLocaleDateString('id-ID');
         const escapedName = t.name.replace(/"/g, '""');
         const syncStatus = t.synced ? 'Tersinkron' : 'Lokal';
-        return `"${t.id}","${formattedDate}","${escapedName}","${t.category}",${t.quantity},${t.price},${t.total},"${syncStatus}"`;
+        return `"${t.id}","${formattedDate}","${t.type}","${escapedName}","${t.category}",${t.quantity},${t.price},${t.hpp},${t.total},${t.profit},"${syncStatus}"`;
       })
       .join('\n');
     const csvContent = headers + rows;
@@ -90,15 +104,16 @@ export default function HistoryScreen() {
 
   const renderTableHeader = () => (
     <View style={[styles.tableHeader, { backgroundColor: colors.backgroundSelected }]}>
-      <Text style={[styles.headerCell, styles.colProduct, { color: colors.text }]}>Produk</Text>
+      <Text style={[styles.headerCell, styles.colProduct, { color: colors.text }]}>Item & Kategori</Text>
       <Text style={[styles.headerCell, styles.colQty, { color: colors.text }]}>Qty</Text>
-      <Text style={[styles.headerCell, styles.colTotal, { color: colors.text }]}>Total</Text>
+      <Text style={[styles.headerCell, styles.colTotal, { color: colors.text }]}>Jumlah (Rp)</Text>
       <Text style={[styles.headerCell, styles.colStatus, { color: colors.text }]}>Status</Text>
       <Text style={[styles.headerCell, styles.colAction, { color: colors.text }]}></Text>
     </View>
   );
 
   const renderTableRow = ({ item }: { item: Transaction }) => {
+    const isIncome = item.type === 'pemasukan';
     return (
       <View style={[styles.tableRow, { borderColor: colors.backgroundSelected }]}>
         {/* Product Column */}
@@ -117,12 +132,18 @@ export default function HistoryScreen() {
 
         {/* Total Column */}
         <View style={styles.colTotal}>
-          <Text style={[styles.cellTextBold, { color: colors.primary }]}>
-            Rp{item.total.toLocaleString('id-ID')}
+          <Text style={[styles.cellTextBold, { color: isIncome ? '#22c55e' : '#ef4444' }]}>
+            {isIncome ? '+' : '-'}Rp{item.total.toLocaleString('id-ID')}
           </Text>
-          <Text style={styles.cellTextSub}>
-            {new Date(item.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </Text>
+          {isIncome && item.hpp > 0 ? (
+            <Text style={[styles.cellTextSub, { color: '#22c55e', fontWeight: '800' }]}>
+              Laba: +{(item.total - item.hpp * item.quantity).toLocaleString('id-ID')}
+            </Text>
+          ) : (
+            <Text style={styles.cellTextSub}>
+              {new Date(item.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+          )}
         </View>
 
         {/* Status Column */}
@@ -134,7 +155,7 @@ export default function HistoryScreen() {
             ]}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Feather name={item.synced ? "cloud" : "database"} size={10} color={item.synced ? '#22c55e' : '#ea580c'} />
+              <Feather name={item.synced ? 'cloud' : 'database'} size={10} color={item.synced ? '#22c55e' : '#ea580c'} />
               <Text style={[styles.statusText, { color: item.synced ? '#22c55e' : '#ea580c' }]}>
                 {item.synced ? 'Awan' : 'Lokal'}
               </Text>
@@ -153,6 +174,67 @@ export default function HistoryScreen() {
     );
   };
 
+  const renderDashboard = () => (
+    <View style={styles.dashboard}>
+      {/* 3 Metric Cards */}
+      <View style={styles.metricRow}>
+        <ThemedView type="backgroundElement" style={[styles.metricCard, { borderColor: colors.backgroundSelected }]}>
+          <Feather name="trending-up" size={18} color="#22c55e" style={styles.metricIcon} />
+          <Text style={styles.metricLabel}>Total Omset</Text>
+          <Text style={[styles.metricValue, { color: colors.text }]}>
+            Rp{totalOmset.toLocaleString('id-ID')}
+          </Text>
+        </ThemedView>
+
+        <ThemedView type="backgroundElement" style={[styles.metricCard, { borderColor: colors.backgroundSelected }]}>
+          <Feather name="shopping-bag" size={18} color="#ef4444" style={styles.metricIcon} />
+          <Text style={styles.metricLabel}>Total Belanja</Text>
+          <Text style={[styles.metricValue, { color: colors.text }]}>
+            Rp{totalBelanja.toLocaleString('id-ID')}
+          </Text>
+        </ThemedView>
+
+        <ThemedView type="backgroundElement" style={[styles.metricCard, { borderColor: colors.backgroundSelected }]}>
+          <Feather name="dollar-sign" size={18} color={totalLaba >= 0 ? '#7c3aed' : '#ef4444'} style={styles.metricIcon} />
+          <Text style={styles.metricLabel}>Laba Bersih</Text>
+          <Text style={[styles.metricValue, { color: totalLaba >= 0 ? '#7c3aed' : '#ef4444' }]}>
+            {totalLaba >= 0 ? '+' : ''}Rp{totalLaba.toLocaleString('id-ID')}
+          </Text>
+        </ThemedView>
+      </View>
+
+      {/* Break-Even Progress Bar */}
+      <ThemedView type="backgroundElement" style={[styles.bepCard, { borderColor: colors.backgroundSelected }]}>
+        <View style={styles.bepHeader}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Feather name="percent" size={14} color={colors.primary} />
+            <Text style={[styles.bepTitle, { color: colors.text }]}>Analisis Balik Modal (BEP)</Text>
+          </View>
+          <Text style={[styles.bepPercentage, { color: colors.primary }]}>{bepProgress}%</Text>
+        </View>
+
+        {/* Progress Track */}
+        <View style={[styles.progressTrack, { backgroundColor: colors.backgroundSelected }]}>
+          <View
+            style={[
+              styles.progressBar,
+              {
+                width: `${bepProgress}%`,
+                backgroundColor: bepProgress >= 100 ? '#22c55e' : colors.primary,
+              },
+            ]}
+          />
+        </View>
+
+        <Text style={[styles.bepCaption, { color: colors.textSecondary }]}>
+          {bepProgress >= 100
+            ? 'Sudah Balik Modal! Penghasilan Anda sepenuhnya adalah keuntungan murni. 🎉'
+            : `Kurang Rp${missingToBep.toLocaleString('id-ID')} omset lagi untuk mencapai balik modal.`}
+        </Text>
+      </ThemedView>
+    </View>
+  );
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -160,7 +242,7 @@ export default function HistoryScreen() {
         <View style={styles.header}>
           <View style={styles.headerTitleRow}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.two }}>
-              <ThemedText type="title">Riwayat Transaksi</ThemedText>
+              <ThemedText type="title">Laporan Buku Kas</ThemedText>
               <Feather name="list" size={24} color={colors.primary} />
             </View>
             {unsyncedCount > 0 && (
@@ -186,10 +268,13 @@ export default function HistoryScreen() {
           </View>
           <ThemedText themeColor="textSecondary">
             {unsyncedCount > 0
-              ? `Terdapat ${unsyncedCount} transaksi lokal yang belum disinkronkan.`
-              : 'Semua data transaksi lokal Anda tersimpan dengan aman.'}
+              ? `Terdapat ${unsyncedCount} transaksi lokal yang belum disinkronkan ke server.`
+              : 'Semua data transaksi tersimpan dengan aman secara lokal.'}
           </ThemedText>
         </View>
+
+        {/* Dashboard Analytics */}
+        {transactions.length > 0 && renderDashboard()}
 
         {/* Action Toolbar */}
         {transactions.length > 0 && (
@@ -234,7 +319,7 @@ export default function HistoryScreen() {
                 Belum ada transaksi
               </ThemedText>
               <ThemedText themeColor="textSecondary">
-                Silakan catat penjualan Anda di menu Catat terlebih dahulu.
+                Silakan catat penjualan atau belanja Anda di menu Catat terlebih dahulu.
               </ThemedText>
             </View>
           }
@@ -351,21 +436,80 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     textTransform: 'uppercase',
   },
-  deleteText: {
-    fontSize: 14,
-    textAlign: 'center',
+  // Dashboard Styles
+  dashboard: {
+    paddingHorizontal: Spacing.four,
+    marginBottom: Spacing.four,
   },
-  // Responsive Columns Flex
+  metricRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+    marginBottom: Spacing.three,
+  },
+  metricCard: {
+    flex: 1,
+    padding: Spacing.three,
+    borderRadius: BorderRadius.medium,
+    borderWidth: 1.5,
+  },
+  metricIcon: {
+    marginBottom: 6,
+  },
+  metricLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#9ca3af',
+    marginBottom: 4,
+  },
+  metricValue: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  bepCard: {
+    padding: Spacing.three,
+    borderRadius: BorderRadius.medium,
+    borderWidth: 1.5,
+  },
+  bepHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.two,
+  },
+  bepTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  bepPercentage: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  progressTrack: {
+    height: 10,
+    borderRadius: 5,
+    overflow: 'hidden',
+    marginBottom: Spacing.two,
+  },
+  progressBar: {
+    height: '100%',
+    borderRadius: 5,
+  },
+  bepCaption: {
+    fontSize: 10,
+    fontWeight: '600',
+    lineHeight: 14,
+  },
+  // Columns Width
   colProduct: {
-    flex: 3.5,
+    flex: 3.2,
     paddingRight: Spacing.one,
   },
   colQty: {
-    flex: 2,
+    flex: 1.8,
     paddingRight: Spacing.one,
   },
   colTotal: {
-    flex: 3,
+    flex: 3.5,
     paddingRight: Spacing.one,
   },
   colStatus: {
@@ -384,11 +528,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.six,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: Spacing.two,
-    opacity: 0.5,
   },
   emptyText: {
     fontWeight: 'bold',

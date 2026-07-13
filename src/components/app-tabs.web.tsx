@@ -14,7 +14,6 @@ import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
 import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
-// eslint-disable-next-line import/no-unresolved
 import { Feather } from '@expo/vector-icons';
 
 export default function AppTabs() {
