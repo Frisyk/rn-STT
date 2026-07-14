@@ -9,9 +9,11 @@ export interface Transaction {
   category: string;
   quantity: number;
   price: number;
-  hpp: number; // Cost price (modal) per unit for sales, or 0 for expenses
-  total: number;
-  profit: number; // Net profit impact
+  hpp: number; // Harga pokok penjualan per unit (modal/biaya)
+  total: number; // Nilai total transaksi (qty * price)
+  profit: number; // Dampak laba bersih
+  // Additional cost breakdown
+  operasionalCost: number; // Biaya operasional (sewa, gaji, utilitas) untuk pengeluaran
   date: string;
   synced: boolean;
 }
@@ -20,9 +22,14 @@ interface TransactionState {
   transactions: Transaction[];
   isSyncing: boolean;
   addTransaction: (tx: Omit<Transaction, 'id' | 'date' | 'total' | 'profit' | 'synced'>) => void;
-  deleteTransaction: (id: string) => void;
+  deleteTransaction: (id: string) => Promise<void>;
   syncTransactions: () => Promise<void>;
   clearTransactions: () => void;
+}
+
+// Helper: get month key like "2025-07"
+export function getMonthKey(dateStr: string): string {
+  return dateStr.substring(0, 7);
 }
 
 export const useTransactionStore = create<TransactionState>()(
@@ -30,11 +37,13 @@ export const useTransactionStore = create<TransactionState>()(
     (set, get) => ({
       transactions: [],
       isSyncing: false,
+
       addTransaction: (tx) => {
         const total = tx.quantity * tx.price;
-        const profit = tx.type === 'pemasukan'
-          ? total - (tx.hpp * tx.quantity)
-          : -total;
+        const profit =
+          tx.type === 'pemasukan'
+            ? total - tx.hpp * tx.quantity
+            : -(total + tx.operasionalCost);
 
         const newTx: Transaction = {
           ...tx,
@@ -48,33 +57,68 @@ export const useTransactionStore = create<TransactionState>()(
           transactions: [newTx, ...state.transactions],
         }));
       },
-      deleteTransaction: (id) => {
+
+      deleteTransaction: async (id) => {
+        // Optimistically remove from local state
         set((state) => ({
           transactions: state.transactions.filter((t) => t.id !== id),
         }));
+        // Try to remove from Supabase
+        try {
+          const { supabase } = await import('@/utils/supabase');
+          await supabase.from('transactions').delete().eq('id', id);
+        } catch {
+          // Supabase delete failure is non-blocking; local delete already done
+        }
       },
+
       syncTransactions: async () => {
         const unsynced = get().transactions.filter((t) => !t.synced);
         if (unsynced.length === 0) return;
 
         set({ isSyncing: true });
-        
-        // Simulating Supabase sync network delay (2 seconds)
-        await new Promise((resolve) => setTimeout(resolve, 2000));
 
-        set((state) => ({
-          isSyncing: false,
-          transactions: state.transactions.map((t) =>
-            t.synced ? t : { ...t, synced: true }
-          ),
-        }));
+        try {
+          const { supabase } = await import('@/utils/supabase');
+          const rows = unsynced.map((t) => ({
+            id: t.id,
+            name: t.name,
+            type: t.type,
+            category: t.category,
+            quantity: t.quantity,
+            price: t.price,
+            hpp: t.hpp,
+            total: t.total,
+            profit: t.profit,
+            operasional_cost: t.operasionalCost,
+            date: t.date,
+          }));
+
+          const { error } = await supabase
+            .from('transactions')
+            .upsert(rows, { onConflict: 'id' });
+
+          if (!error) {
+            set((state) => ({
+              isSyncing: false,
+              transactions: state.transactions.map((t) =>
+                t.synced ? t : { ...t, synced: true }
+              ),
+            }));
+          } else {
+            set({ isSyncing: false });
+          }
+        } catch {
+          set({ isSyncing: false });
+        }
       },
+
       clearTransactions: () => {
         set({ transactions: [] });
       },
     }),
     {
-      name: 'umkm-transactions-storage',
+      name: 'umkm-transactions-v2',
       storage: createJSONStorage(() => AsyncStorage),
     }
   )

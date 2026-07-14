@@ -8,13 +8,12 @@ import {
 } from 'expo-router/ui';
 import { SymbolView } from 'expo-symbols';
 import { Pressable, useColorScheme, View, StyleSheet } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 
-import { ExternalLink } from './external-link';
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
 import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
-import { Feather } from '@expo/vector-icons';
 
 export default function AppTabs() {
   return (
@@ -23,10 +22,13 @@ export default function AppTabs() {
       <TabList asChild>
         <CustomTabList>
           <TabTrigger name="home" href="/" asChild>
-            <TabButton>Catat</TabButton>
+            <TabButton icon="zap">Kini</TabButton>
           </TabTrigger>
-          <TabTrigger name="history" href="/history" asChild>
-            <TabButton>Riwayat</TabButton>
+          <TabTrigger name="past" href={"/past" as any} asChild>
+            <TabButton icon="clock">Lalu</TabButton>
+          </TabTrigger>
+          <TabTrigger name="future" href={"/future" as any} asChild>
+            <TabButton icon="trending-up">Depan</TabButton>
           </TabTrigger>
         </CustomTabList>
       </TabList>
@@ -34,13 +36,27 @@ export default function AppTabs() {
   );
 }
 
-export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps) {
+export function TabButton({
+  children,
+  isFocused,
+  icon,
+  ...props
+}: TabTriggerSlotProps & { icon: React.ComponentProps<typeof Feather>['name'] }) {
+  const scheme = useColorScheme();
+  const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
+
   return (
     <Pressable style={({ pressed }) => pressed && styles.pressed} {...props}>
       <ThemedView
         type={isFocused ? 'backgroundSelected' : 'backgroundElement'}
-        style={styles.tabButtonView}>
-        <ThemedText type="small" themeColor={isFocused ? 'text' : 'textSecondary'}>
+        style={styles.tabButtonView}
+      >
+        <Feather
+          name={icon}
+          size={13}
+          color={isFocused ? colors.primary : colors.textSecondary}
+        />
+        <ThemedText type="small" themeColor={isFocused ? 'primary' : 'textSecondary'}>
           {children}
         </ThemedText>
       </ThemedView>
@@ -56,24 +72,11 @@ export function CustomTabList(props: TabListProps) {
     <View {...props} style={styles.tabListContainer}>
       <ThemedView type="backgroundElement" style={styles.innerContainer}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.one, marginRight: 'auto' }}>
-          <Feather name="trending-up" size={14} color={colors.primary} />
-          <ThemedText type="smallBold">
-            CatatKas
-          </ThemedText>
+          <Feather name="book" size={14} color={colors.primary} />
+          <ThemedText type="smallBold">CatatKas UMKM</ThemedText>
         </View>
 
         {props.children}
-
-        <ExternalLink href="https://docs.expo.dev" asChild>
-          <Pressable style={styles.externalPressable}>
-            <ThemedText type="link">Docs</ThemedText>
-            <SymbolView
-              tintColor={colors.text}
-              name={{ ios: 'arrow.up.right.square', web: 'link' }}
-              size={12}
-            />
-          </Pressable>
-        </ExternalLink>
       </ThemedView>
     </View>
   );
@@ -98,22 +101,13 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     maxWidth: MaxContentWidth,
   },
-  brandText: {
-    marginRight: 'auto',
-  },
-  pressed: {
-    opacity: 0.7,
-  },
+  pressed: { opacity: 0.7 },
   tabButtonView: {
     paddingVertical: Spacing.one,
     paddingHorizontal: Spacing.three,
     borderRadius: Spacing.three,
-  },
-  externalPressable: {
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    gap: Spacing.one,
-    marginLeft: Spacing.three,
+    gap: 5,
   },
 });
