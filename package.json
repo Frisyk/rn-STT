@@ -47,7 +47,9 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build": "expo export --platform web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "eas-install": "npm ci",
+    "prebuild": "npm run eas-install"
   },
   "private": true
 }
