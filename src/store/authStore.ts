@@ -9,6 +9,8 @@ export interface UserProfile {
   phone_number: string | null;
   business_name: string | null;
   avatar_url: string | null;
+  monthly_target?: number | null;
+  growth_rate?: number | null;
 }
 
 interface AuthState {
@@ -59,7 +61,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
-      set({ userProfile: data as UserProfile });
+      const profile = data as UserProfile;
+      set({ userProfile: profile });
+
+      // Update projectionStore with DB values
+      const { useProjectionStore } = await import('@/store/projectionStore');
+      if (profile.monthly_target !== undefined && profile.monthly_target !== null) {
+        useProjectionStore.setState({ monthlyTargetIncome: Number(profile.monthly_target) });
+      }
+      if (profile.growth_rate !== undefined && profile.growth_rate !== null) {
+        useProjectionStore.setState({ growthRatePercent: Number(profile.growth_rate) });
+      }
     } catch (error) {
       console.error('Unexpected error fetching profile:', error);
     }

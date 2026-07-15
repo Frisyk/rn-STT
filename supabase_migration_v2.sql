@@ -111,3 +111,64 @@ CREATE POLICY "Users can manage their own capex" ON umkm.capex_items
   FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 CREATE INDEX IF NOT EXISTS idx_capex_user_id ON umkm.capex_items(user_id);
+
+
+-- ============================================================
+-- 5. PRODUCTS TABLE (Katalog produk jual / menu)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS umkm.products (
+  id TEXT PRIMARY KEY,
+  user_id UUID NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'Makanan',
+  selling_price INTEGER NOT NULL DEFAULT 0,
+  hpp_calculated INTEGER NOT NULL DEFAULT 0,
+  margin_percent NUMERIC(5,2) DEFAULT 0,
+  unit TEXT NOT NULL DEFAULT 'porsi',
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE umkm.products ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage their own products" ON umkm.products
+  FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+CREATE INDEX IF NOT EXISTS idx_products_user_id ON umkm.products(user_id);
+
+
+-- ============================================================
+-- 6. PRODUCT COMPONENTS TABLE (Resep/BOM per produk)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS umkm.product_components (
+  id TEXT PRIMARY KEY,
+  product_id TEXT NOT NULL REFERENCES umkm.products(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
+  component_name TEXT NOT NULL,
+  quantity NUMERIC(10,4) NOT NULL DEFAULT 1,
+  unit TEXT NOT NULL DEFAULT 'pcs',
+  cost_per_unit INTEGER NOT NULL DEFAULT 0,
+  subtotal INTEGER NOT NULL DEFAULT 0,
+  stock_id TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE umkm.product_components ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage their own components" ON umkm.product_components
+  FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+CREATE INDEX IF NOT EXISTS idx_components_product ON umkm.product_components(product_id);
+CREATE INDEX IF NOT EXISTS idx_components_user ON umkm.product_components(user_id);
+
+
+-- ============================================================
+-- 7. ADD EXTRA COLUMNS (idempotent)
+-- ============================================================
+
+-- Add product_id link to transactions
+ALTER TABLE umkm.transactions ADD COLUMN IF NOT EXISTS product_id TEXT;
+
+-- Add target & growth to user_profiles
+ALTER TABLE umkm.user_profiles ADD COLUMN IF NOT EXISTS monthly_target BIGINT DEFAULT 0;
+ALTER TABLE umkm.user_profiles ADD COLUMN IF NOT EXISTS growth_rate NUMERIC(5,2) DEFAULT 10;

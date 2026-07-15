@@ -9,11 +9,11 @@ export interface Transaction {
   category: string;
   quantity: number;
   price: number;
-  hpp: number; // Harga pokok penjualan per unit (modal/biaya)
-  total: number; // Nilai total transaksi (qty * price)
-  profit: number; // Dampak laba bersih
-  // Additional cost breakdown
-  operasionalCost: number; // Biaya operasional (sewa, gaji, utilitas) untuk pengeluaran
+  hpp: number;
+  total: number;
+  profit: number;
+  operasionalCost: number;
+  productId?: string; // optional link to product catalog
   date: string;
   synced: boolean;
 }
@@ -27,7 +27,6 @@ interface TransactionState {
   clearTransactions: () => void;
 }
 
-// Helper: get month key like "2025-07"
 export function getMonthKey(dateStr: string): string {
   return dateStr.substring(0, 7);
 }
@@ -59,16 +58,14 @@ export const useTransactionStore = create<TransactionState>()(
       },
 
       deleteTransaction: async (id) => {
-        // Optimistically remove from local state
         set((state) => ({
           transactions: state.transactions.filter((t) => t.id !== id),
         }));
-        // Try to remove from Supabase
         try {
           const { supabase } = await import('@/utils/supabase');
           await supabase.from('transactions').delete().eq('id', id);
         } catch {
-          // Supabase delete failure is non-blocking; local delete already done
+          // non-blocking
         }
       },
 
@@ -91,6 +88,7 @@ export const useTransactionStore = create<TransactionState>()(
             total: t.total,
             profit: t.profit,
             operasional_cost: t.operasionalCost,
+            product_id: t.productId || null,
             date: t.date,
           }));
 

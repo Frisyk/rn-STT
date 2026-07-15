@@ -61,17 +61,55 @@ export const useProjectionStore = create<ProjectionState>()(
         }));
       },
 
-      setMonthlyTarget: (target) => set({ monthlyTargetIncome: target }),
-      setGrowthRate: (rate) => set({ growthRatePercent: rate }),
+      setMonthlyTarget: async (target) => {
+        set({ monthlyTargetIncome: target });
+        try {
+          const { useAuthStore } = await import('@/store/authStore');
+          const session = useAuthStore.getState().session;
+          const userId = session?.user?.id;
+          if (!userId) return;
+
+          const { supabase } = await import('@/utils/supabase');
+          await supabase
+            .from('user_profiles')
+            .update({ monthly_target: target })
+            .eq('id', userId);
+        } catch {
+          // non-blocking
+        }
+      },
+      setGrowthRate: async (rate) => {
+        set({ growthRatePercent: rate });
+        try {
+          const { useAuthStore } = await import('@/store/authStore');
+          const session = useAuthStore.getState().session;
+          const userId = session?.user?.id;
+          if (!userId) return;
+
+          const { supabase } = await import('@/utils/supabase');
+          await supabase
+            .from('user_profiles')
+            .update({ growth_rate: rate })
+            .eq('id', userId);
+        } catch {
+          // non-blocking
+        }
+      },
 
       syncProjections: async () => {
         const unsynced = get().capexItems.filter((c) => !c.synced);
         if (unsynced.length === 0) return;
 
         try {
+          const { useAuthStore } = await import('@/store/authStore');
+          const session = useAuthStore.getState().session;
+          const userId = session?.user?.id;
+          if (!userId) return;
+
           const { supabase } = await import('@/utils/supabase');
           const rows = unsynced.map((c) => ({
             id: c.id,
+            user_id: userId,
             name: c.name,
             investment_amount: c.investmentAmount,
             expected_monthly_return: c.expectedMonthlyReturn,
@@ -79,10 +117,14 @@ export const useProjectionStore = create<ProjectionState>()(
             category: c.category,
             notes: c.notes,
           }));
-          await supabase.from('capex_items').upsert(rows, { onConflict: 'id' });
-          set((state) => ({
-            capexItems: state.capexItems.map((c) => ({ ...c, synced: true })),
-          }));
+          const { error } = await supabase.from('capex_items').upsert(rows, { onConflict: 'id' });
+          if (!error) {
+            set((state) => ({
+              capexItems: state.capexItems.map((c) =>
+                unsynced.some((u) => u.id === c.id) ? { ...c, synced: true } : c
+              ),
+            }));
+          }
         } catch {
           // non-blocking
         }

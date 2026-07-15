@@ -87,9 +87,15 @@ export const useStockStore = create<StockState>()(
         if (unsynced.length === 0) return;
 
         try {
+          const { useAuthStore } = await import('@/store/authStore');
+          const session = useAuthStore.getState().session;
+          const userId = session?.user?.id;
+          if (!userId) return;
+
           const { supabase } = await import('@/utils/supabase');
           const rows = unsynced.map((s) => ({
             id: s.id,
+            user_id: userId,
             name: s.name,
             category: s.category,
             unit: s.unit,
@@ -106,7 +112,9 @@ export const useStockStore = create<StockState>()(
 
           if (!error) {
             set((state) => ({
-              stocks: state.stocks.map((s) => ({ ...s, synced: true })),
+              stocks: state.stocks.map((s) =>
+                unsynced.some((u) => u.id === s.id) ? { ...s, synced: true } : s
+              ),
             }));
           }
         } catch {

@@ -22,13 +22,19 @@ export default function AppTabs() {
       <TabList asChild>
         <CustomTabList>
           <TabTrigger name="home" href="/" asChild>
-            <TabButton icon="zap">Kini</TabButton>
+            <TabButton icon="zap">Transaksi</TabButton>
           </TabTrigger>
           <TabTrigger name="past" href={"/past" as any} asChild>
-            <TabButton icon="clock">Lalu</TabButton>
+            <TabButton icon="clock">Laporan</TabButton>
           </TabTrigger>
           <TabTrigger name="future" href={"/future" as any} asChild>
-            <TabButton icon="trending-up">Depan</TabButton>
+            <TabButton icon="trending-up">Rencana</TabButton>
+          </TabTrigger>
+          <TabTrigger name="products" href={"/products" as any} asChild>
+            <TabButton icon="package">Produk</TabButton>
+          </TabTrigger>
+          <TabTrigger name="profile" href={"/profile" as any} asChild>
+            <TabButton icon="user">Profil</TabButton>
           </TabTrigger>
         </CustomTabList>
       </TabList>

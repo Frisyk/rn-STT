@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -19,6 +19,7 @@ import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing, Colors, BorderRadius } from '@/constants/theme';
 import { useTransactionStore, getMonthKey } from '@/store/transactionStore';
 import { useProjectionStore, CapExItem } from '@/store/projectionStore';
+import { useProductStore } from '@/store/productStore';
 
 const CAPEX_CATEGORIES = ['Mesin', 'Kendaraan', 'Renovasi', 'Digital', 'Lainnya'] as const;
 
@@ -28,6 +29,7 @@ export default function FutureScreen() {
   const colors = Colors[isDark ? 'dark' : 'light'];
 
   const { transactions } = useTransactionStore();
+  const { products } = useProductStore();
   const {
     capexItems,
     monthlyTargetIncome,
@@ -50,6 +52,14 @@ export default function FutureScreen() {
   // ── Target / Growth form state ───────────────────────────────────────────────
   const [targetInput, setTargetInput] = useState(monthlyTargetIncome > 0 ? String(monthlyTargetIncome) : '');
   const [growthInput, setGrowthInput] = useState(String(growthRatePercent));
+
+  useEffect(() => {
+    setTargetInput(monthlyTargetIncome > 0 ? String(monthlyTargetIncome) : '');
+  }, [monthlyTargetIncome]);
+
+  useEffect(() => {
+    setGrowthInput(String(growthRatePercent));
+  }, [growthRatePercent]);
 
   // ── Historical data calculations ─────────────────────────────────────────────
   const { thisMonthIncome, lastMonthIncome, avgMonthlyNetCash } = useMemo(() => {
@@ -118,6 +128,14 @@ export default function FutureScreen() {
     })
     .reduce((s, t) => s + t.total, 0);
   const pphEstimate = monthlyOmset * 0.005;
+
+  // Operational expenses this month (fixed cost for BEP calculation)
+  const monthKey = getMonthKey(new Date().toISOString());
+  const monthExpenses = useMemo(() => {
+    return transactions
+      .filter((t) => t.type === 'pengeluaran' && getMonthKey(t.date) === monthKey)
+      .reduce((sum, t) => sum + t.total + (t.operasionalCost || 0), 0);
+  }, [transactions, monthKey]);
 
   const handleAddCapEx = () => {
     const amount = parseFloat(capexAmount.replace(/\D/g, ''));
@@ -359,6 +377,31 @@ export default function FutureScreen() {
                     {Math.min(100, Math.round((thisMonthIncome / monthlyTargetIncome) * 100))}% dari
                     target bulan ini tercapai
                   </Text>
+                </View>
+              )}
+
+              {/* BEP Per Product list */}
+              {products.filter(p => p.isActive && p.sellingPrice > p.hppCalculated).length > 0 && (
+                <View style={{ marginTop: Spacing.three, borderTopWidth: 1, borderTopColor: colors.backgroundSelected, paddingTop: Spacing.two }}>
+                  <Text style={[styles.inputLabel, { color: colors.text, marginBottom: Spacing.two }]}>
+                    Target Penjualan Unit untuk BEP (per produk):
+                  </Text>
+                  {products.filter(p => p.isActive && p.sellingPrice > p.hppCalculated).map((p) => {
+                    const contribution = p.sellingPrice - p.hppCalculated;
+                    const unitsNeeded = contribution > 0 ? Math.ceil(monthExpenses / contribution) : 0;
+                    const soldUnits = transactions
+                      .filter((t) => t.productId === p.id && getMonthKey(t.date) === monthKey)
+                      .reduce((sum, t) => sum + t.quantity, 0);
+                    const percentage = Math.min(100, Math.round((soldUnits / unitsNeeded) * 100)) || 0;
+                    return (
+                      <View key={p.id} style={styles.bepProductRow}>
+                        <Text style={[styles.bepProductName, { color: colors.text }]}>{p.name}</Text>
+                        <Text style={[styles.bepProductDetail, { color: colors.textSecondary }]}>
+                          {soldUnits} / {unitsNeeded} {p.unit} ({percentage}%)
+                        </Text>
+                      </View>
+                    );
+                  })}
                 </View>
               )}
             </ThemedView>
@@ -647,4 +690,18 @@ const styles = StyleSheet.create({
   capexRight: { alignItems: 'flex-end' },
   paybackValue: { fontWeight: '800', fontSize: 15 },
   paybackLabel: { fontSize: 10, color: '#9ca3af', fontWeight: '600' },
+  bepProductRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  bepProductName: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  bepProductDetail: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
 });
